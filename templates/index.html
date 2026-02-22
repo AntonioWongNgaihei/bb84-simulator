@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BB84 QKD Simulator & OTP Chat</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <div id="connection-overlay">
+        <div class="glow-box">
+            <h1>QUANTUM LINK ESTABLISHING...</h1>
+            <p>Connecting to secure node...</p>
+        </div>
+    </div>
+
+    <div id="main-interface" style="display: none;">
+        <header>
+            <h1><span class="neon-blue">BB84 Protocol</span> Simulator</h1>
+            <div id="role-badge" class="badge">Unassigned</div>
+            <div id="system-status">
+                <span id="status-alice" class="status-indicator offline">Alice</span>
+                <span id="status-bob" class="status-indicator offline">Bob</span>
+                <span id="status-eve" class="status-indicator offline">Eve</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- ALICE DASHBOARD -->
+            <section id="panel-alice" class="role-panel hidden">
+                <div class="panel-header">ALICE (Sender) Dashboard</div>
+                <div class="panel-content">
+                    <div class="control-group">
+                        <label>Quantum Transmission (Number of Bits)</label>
+                        <input type="number" id="num-bits" value="128" min="16" max="1024">
+                        <button id="btn-generate">1. Generate & Send Qubits</button>
+                    </div>
+
+                    <div class="data-view">
+                        <h3>Raw Quantum State</h3>
+                        <p class="data-row">Bits: <span id="a-raw-bits" class="bits mono"></span></p>
+                        <p class="data-row">Bases: <span id="a-raw-bases" class="bases mono"></span></p>
+                    </div>
+
+                    <button id="btn-sift" disabled>2. Start Classical Sifting</button>
+
+                    <div class="data-view hidden" id="a-sifted-view">
+                        <h3>Sifted Key (Matching Bases)</h3>
+                        <p class="data-row">Key: <span id="a-sifted-key" class="key mono"></span></p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- BOB DASHBOARD -->
+            <section id="panel-bob" class="role-panel hidden">
+                <div class="panel-header">BOB (Receiver) Dashboard</div>
+                <div class="panel-content">
+                    <div class="status-msg" id="b-waiting">Waiting for transmission...</div>
+                    
+                    <div class="data-view hidden" id="b-raw-view">
+                        <h3>Received Transmission</h3>
+                        <p class="data-row">My Bases: <span id="b-raw-bases" class="bases mono"></span></p>
+                        <p class="data-row">Measured: <span id="b-raw-bits" class="bits mono"></span></p>
+                    </div>
+
+                    <div class="data-view hidden" id="b-sifted-view">
+                        <h3>Sifted Key (Matching Bases)</h3>
+                        <p class="data-row">Key: <span id="b-sifted-key" class="key mono"></span></p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- EVE DASHBOARD -->
+            <section id="panel-eve" class="role-panel hidden">
+                <div class="panel-header eve-header">EVE (Eavesdropper) Dashboard</div>
+                <div class="panel-content">
+                    <p class="warning-text">You are intercepted between Alice and Bob.</p>
+                    
+                    <div class="data-view" id="e-intercept-view">
+                        <h3>Intercepted Quantum Channel</h3>
+                        <p class="data-row">My Guessed Bases: <span id="e-bases" class="bases mono"></span></p>
+                        <p class="data-row">Measured Bits: <span id="e-bits" class="bits mono"></span></p>
+                        <p class="note">Forwarding collapsed states to Bob...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SHARED CLASSICAL PROCESSING -->
+            <section id="panel-processing" class="shared-panel hidden">
+                <div class="panel-header">Classical Post-Processing</div>
+                <div class="panel-content">
+                    <div class="step-card" id="step-qber">
+                        <h3>3. Error Estimation</h3>
+                        <button id="btn-calc-qber" disabled>Calculate QBER</button>
+                        <div class="result" id="qber-result"></div>
+                    </div>
+
+                    <div class="step-card disabled" id="step-recon">
+                        <h3>4. Information Reconciliation</h3>
+                        <p class="desc">Performing parity checks to fix minor errors...</p>
+                        <button id="btn-recon" disabled>Run Reconciliation</button>
+                        <div class="result mono" id="recon-result"></div>
+                    </div>
+
+                    <div class="step-card disabled" id="step-privacy">
+                        <h3>5. Privacy Amplification</h3>
+                        <p class="desc">Compressing key to eliminate Eve's partial knowledge.</p>
+                        <button id="btn-privacy" disabled>Execute SHA-256 Hash Hashing (XOR)</button>
+                        <div class="result mono" id="privacy-result"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- OTP CHATROOM -->
+            <section id="panel-chat" class="chat-panel hidden">
+                <div class="panel-header chat-header">SECURE OTP CHATROOM</div>
+                <div class="panel-content">
+                    <div class="key-display">
+                        Active Key: <span id="active-key" class="mono neon-green"></span>
+                    </div>
+                    <div class="chat-box" id="chat-messages">
+                        <!-- Messages go here -->
+                    </div>
+                    
+                    <div class="chat-input" id="chat-controls">
+                        <input type="text" id="chat-input" placeholder="Enter secure message...">
+                        <button id="btn-send-chat">Encrypt & Send</button>
+                    </div>
+                    <div id="eve-chat-view" class="hidden">
+                        <p class="warning-text">Intercepting Ciphertext (Unable to decipher):</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="/static/client.js"></script>
+</body>
+</html>
